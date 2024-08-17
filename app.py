@@ -1,26 +1,28 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from marshmallow import fields, validate
 from marshmallow import ValidationError
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 
 #ensure proper environment is being used
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:your_password@your_host/e_commerce_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:Okcthunder39@127.0.0.1/e_commerce_db'
 
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
+CORS(app)
 
 #Set Customer Schema
 class CustomerSchema(ma.Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
-    email = fields.String(required=True, validate=validate.Email)
+    email = fields.String(required=True)
     phone = fields.String(required=True, validate=validate.Length(min=10))
 
     class Meta:
-        fields = ("name", "email", "phone", "id")
+        fields = ("id", "name", "email", "phone")
 
 #Set Products Schema
 class ProductSchema(ma.Schema):
@@ -29,7 +31,7 @@ class ProductSchema(ma.Schema):
     price = fields.Float(required=True, validate=validate.Range(min=0))
 
     class Meta:
-        fields = ("name", "price", "id")
+        fields = ("id", "name", "price")
 
 #Set Customer Accounts Schema
 class CustomerAccountsSchema(ma.Schema):
@@ -112,6 +114,15 @@ class Product(db.Model):
 def get_customers():
     customers = Customer.query.all()
     return customers_schema.jsonify(customers)
+
+@app.route('/customers/<int:id>', methods=['GET'])
+def get_customer(id):
+    query = select(Customer).filter(Customer.id == id)
+    result = db.session.execute(query).scalars().first()
+    if result is None:
+        return jsonify({"error": "Customer not found"})
+    customer = result
+    return customer_schema.jsonify(customer)
 
 @app.route('/customers', methods=['POST'])
 def add_customer():
@@ -206,6 +217,26 @@ def add_order(id):
     db.session.commit()
     return jsonify({"message" : "New order successfully created"})
 
+#Added new route to handle multiple products for one order
+@app.route('/order/<int:ids>', methods=['POST'])
+def add_multiple_products(ids):
+    try:
+        order_data = order_schema.load(request.json)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+    
+    new_order = Order(date=order_data['date'], customer_id=order_data['customer_id'])
+    db.session.add(new_order)
+    db.session.commit()
+    db.session.refresh(new_order) #gets id of the new order
+    #Set Ids into list for iteration
+    id_list = [int(n) for n in str(ids)]
+    for n in id_list:
+        db.session.refresh(new_order) #gets id of the new order
+        stm = insert(order_product).values(order_id = str(new_order.id), product_id = str(n))
+        db.session.execute(stm)
+        db.session.commit()
+    return jsonify({"message" : "New order successfully created"})
 
 #get specifc order
 @app.route('/orders/<int:id>', methods=['GET'])
@@ -239,7 +270,11 @@ def add_product():
 
 @app.route('/products/<int:id>', methods=['GET'])
 def get_product(id):
-    product = Product.query.get_or_404(id)
+    query = select(Product).filter(Product.id == id)
+    result = db.session.execute(query).scalars().first()
+    if result is None:
+        return jsonify({"error": "Product not found"})
+    product = result
     return product_schema.jsonify(product)
 
 @app.route('/products', methods=['GET'])
@@ -263,6 +298,7 @@ def update_product(id):
 def delete_product(id):
     product = Product.query.get_or_404(id)
     db.session.delete(product)
+    db.session.commit()
     return jsonify({"message": "Product successfully deleted"}), 200
 
 #intialize database and create tables
