@@ -9,7 +9,7 @@ from sqlalchemy import insert, select
 #ensure proper environment is being used
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:<your_root>@127.0.0.1/e_commerce_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:<your_password>@127.0.0.1/e_commerce_db'
 
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
