@@ -1,4 +1,5 @@
 Welcome to the E-commerce-api!
+
 GitHub: https://github.com/dmorris95/e-commerce-api
 
 *Create a virtual environment in the folder where the code will be running from. Before running any code or installing extensions, run the virtual environment. Also ensure the following are installed: flask, flask-sqlalchemy, marshmallow.
